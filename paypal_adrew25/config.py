@@ -14,6 +14,7 @@ class Settings:
         self.paypal_client_id = os.getenv("PAYPAL_CLIENT_ID", "YOUR_PAYPAL_CLIENT_ID")
         self.paypal_client_secret = os.getenv("PAYPAL_CLIENT_SECRET", "secret")
         self.paypal_token_url = os.getenv("PAYPAL_TOKEN_URL", "https://api-m.sandbox.paypal.com/v1/oauth2/token")
+        self.paypal_order_url = os.getenv("PAYPAL_ORDER_URL", "https://api-m.sandbox.paypal.com/v2/checkout/orders")
         self.paypal_mode = os.getenv("PAYPAL_MODE", "sandbox")
         self.paypal_currency = os.getenv("PAYPAL_CURRENCY", "EUR")
         self.paypal_return_url = os.getenv("PAYPAL_RETURN_URL", "http://localhost:8000/success")
