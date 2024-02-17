@@ -12,7 +12,7 @@ Comming soon :)
 You can install the PayPal Integration Python Module using pip:
 (I am working on it cause i dont know how! )
 
-use hould add a .env file to the project
+you should add a .env file to the project
 
 ```
 PAYPAL_CLIENT_ID=
