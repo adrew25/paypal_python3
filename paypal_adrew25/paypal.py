@@ -185,7 +185,7 @@ class PayPalAPI:
             raise Exception("Failed to update order:", response.text)
         
 
-    def confirm_order(self, order_id, customer_email, customer_given_name, customer_surname):
+    def confirm_order(self, order_id, **kwargs):
         """
         Confirms the specified order.
 
@@ -194,6 +194,15 @@ class PayPalAPI:
         - customer_email: The email address of the customer.
         - customer_given_name: The given name of the customer.
         - customer_surname: The surname of the customer.
+        - **kwargs: Additional optional parameters for customization.
+            - payment_method_preference
+            - brand_name
+            - locale
+            - landing_page
+            - shipping_preference
+            - user_action
+            - return_url
+            - cancel_url
 
         Returns:
         - A dictionary containing the details of the confirmed order if successful.
@@ -210,60 +219,10 @@ class PayPalAPI:
             "payment_source": {
                 "paypal": {
                     "name": {
-                        "given_name": customer_given_name,
-                        "surname": customer_surname
+                        "given_name": kwargs.get('customer_given_name', "John"),
+                        "surname": kwargs.get('customer_surname', "Doe")
                     },
-                    "email_address": customer_email,
-                    "experience_context": {
-                        "payment_method_preference": "IMMEDIATE_PAYMENT_REQUIRED",
-                        "brand_name": "EXAMPLE INC",
-                        "locale": "en-US",
-                        "landing_page": "LOGIN",
-                        "shipping_preference": "SET_PROVIDED_ADDRESS",
-                        "user_action": "PAY_NOW",
-                        "return_url": self.settings.paypal_return_url,
-                        "cancel_url": self.settings.paypal_cancel_url
-                    }
-                }
-            }
-        }
-
-        response = requests.post(url, headers=headers, json=payload)
-        if response.status_code == 200:
-            return response.json()
-        else:
-            raise Exception("Failed to confirm order:", response.text)
-        
-        
-    def confirm_order_from_details(self, order_details, **kwargs):
-        """
-        Confirms the order using the details obtained from show_order_details.
-
-        Parameters:
-        - order_details: A dictionary containing the details of the order.
-
-        Returns:
-        - A dictionary containing the confirmation details if successful.
-        
-        Raises:
-        - Exception: If failed to confirm the order.
-        """
-        url = f"{self.settings.paypal_order_url}/{order_details['id']}/confirm-payment-source"
-        
-        
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {self.get_access_token()}',
-        }
-        
-        payload = {
-            "payment_source": {
-                "paypal": {
-                    "name": {
-                        "given_name": order_details['payer']['name']['given_name'],
-                        "surname": order_details['payer']['name']['surname']
-                    },
-                    "email_address": order_details['payer']['email_address'],
+                    "email_address": kwargs.get('customer_email', ""),
                     "experience_context": {
                         "payment_method_preference": kwargs.get('payment_method_preference', "IMMEDIATE_PAYMENT_REQUIRED"),
                         "brand_name": kwargs.get('brand_name', self.settings.paypal_brand_name),
@@ -276,9 +235,8 @@ class PayPalAPI:
                     }
                 }
             }
-        
         }
-        
+
         response = requests.post(url, headers=headers, json=payload)
         if response.status_code == 200:
             return response.json()
