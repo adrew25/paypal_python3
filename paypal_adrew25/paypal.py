@@ -54,6 +54,14 @@ class PayPalAPI:
         - currency: The currency of the order. If not provided, defaults to the currency specified in settings.
         - intent: The intent of the order. Defaults to 'CAPTURE'.
         - **kwargs: Additional optional parameters for customization.
+        - payment_method_preference
+        - brand_name
+        - locale
+        - landing_page
+        - shipping_preference
+        - user_action
+        - return_url
+        - cancel_url
 
         Returns:
         - A dictionary containing the details of the created order if successful.
@@ -66,10 +74,11 @@ class PayPalAPI:
         if currency is None:
             currency = self.settings.paypal_currency
         elif currency != self.settings.paypal_currency:
-            raise ValueError(f"Currency '{currency}' does not match the currency in the settings '{self.settings.paypal_currency}'")
+            raise ValueError(f"Currency '{currency}' does not match the currency in the .env '{self.settings.paypal_currency}'")
         
         headers = {
             'Content-Type': 'application/json',
+            # 'PayPal-Request-Id': '7b92603e-77ed-4896-8e78-5dea2050476a',
             'Authorization': f'Bearer {self.get_access_token()}',
         }
         data = {
@@ -81,15 +90,16 @@ class PayPalAPI:
                         "value": str(amount)
                     }
                 }
+                
             ],
             "payment_source": {
                 "paypal": {
                     "experience_context": {
                         "payment_method_preference": kwargs.get('payment_method_preference', "IMMEDIATE_PAYMENT_REQUIRED"),
-                        "brand_name": kwargs.get('brand_name', "EXAMPLE INC"),
-                        "locale": kwargs.get('locale', "en-US"),
-                        "landing_page": kwargs.get('landing_page', "LOGIN"),
-                        "shipping_preference": kwargs.get('shipping_preference', "SET_PROVIDED_ADDRESS"),
+                        "brand_name": kwargs.get('brand_name', self.settings.paypal_brand_name),
+                        "locale": kwargs.get('locale', self.settings.paypal_locale),
+                        "landing_page": kwargs.get('landing_page', "GUEST_CHECKOUT"),
+                        "shipping_preference": kwargs.get('shipping_preference', "NO_SHIPPING"),
                         "user_action": kwargs.get('user_action', "PAY_NOW"),
                         "return_url": kwargs.get('return_url', self.settings.paypal_return_url),
                         "cancel_url": kwargs.get('cancel_url', self.settings.paypal_cancel_url)
@@ -98,7 +108,179 @@ class PayPalAPI:
             }
         }
         response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 201:
+        if response.status_code == 200:
             return response.json()
         else:
             raise Exception("Failed to create order:", response.text)
+
+
+    def show_order_details(self, order_id):
+        """
+        Retrieves the details of the specified order.
+
+        Parameters:
+        - order_id: The ID of the order to retrieve.
+
+        Returns:
+        - A dictionary containing the details of the order if successful.
+        
+        Raises:
+        - Exception: If failed to retrieve the order details.
+        """
+        url = f"{self.settings.paypal_order_url}/{order_id}"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception("Failed to retrieve order details:", response.text)
+
+        
+        
+    def update_order(self, order_id, data):
+        """
+        Updates the details of the specified order.
+
+        Parameters:
+        - order_id: The ID of the order to update.
+        - data: A dictionary containing the details to update.
+            - intent	replace	
+            - payer	replace, add	Using replace op for payer will replace the whole payer object with the value sent in request.
+            - purchase_units	replace, add	
+            - purchase_units[].custom_id	replace, add, remove	
+            - purchase_units[].description	replace, add, remove	
+            - purchase_units[].payee.email	replace	
+            - purchase_units[].shipping.name	replace, add	
+            - purchase_units[].shipping.address	replace, add	
+            - purchase_units[].shipping.type	replace, add	
+            - purchase_units[].soft_descriptor	replace, remove	
+            - purchase_units[].amount	replace	
+            - purchase_units[].items	replace, add, remove	
+            - purchase_units[].invoice_id	replace, add, remove	
+            - purchase_units[].payment_instruction	replace	
+            - purchase_units[].payment_instruction.disbursement_mode	replace	By default, disbursement_mode is INSTANT.
+            - purchase_units[].payment_instruction.platform_fees	replace, add, remove	
+            - purchase_units[].supplementary_data.airline	replace, add, remove	
+            - purchase_units[].supplementary_data.card	replace, add, remove	
+            - application_context.client_configuration	replace, add
+
+        Returns:
+        - A dictionary containing the details of the updated order if successful.
+        
+        Raises:
+        - Exception: If failed to update the order.
+        """
+        url = f"{self.settings.paypal_order_url}/{order_id}"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+        response = requests.patch(url, headers=headers, json=data)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception("Failed to update order:", response.text)
+        
+
+    def confirm_order(self, order_id, customer_email, customer_given_name, customer_surname):
+        """
+        Confirms the specified order.
+
+        Parameters:
+        - order_id: The ID of the order to confirm.
+        - customer_email: The email address of the customer.
+        - customer_given_name: The given name of the customer.
+        - customer_surname: The surname of the customer.
+
+        Returns:
+        - A dictionary containing the details of the confirmed order if successful.
+
+        Raises:
+        - Exception: If failed to confirm the order.
+        """
+        url = f"{self.settings.paypal_order_url}/{order_id}/confirm-payment-source"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+        payload = {
+            "payment_source": {
+                "paypal": {
+                    "name": {
+                        "given_name": customer_given_name,
+                        "surname": customer_surname
+                    },
+                    "email_address": customer_email,
+                    "experience_context": {
+                        "payment_method_preference": "IMMEDIATE_PAYMENT_REQUIRED",
+                        "brand_name": "EXAMPLE INC",
+                        "locale": "en-US",
+                        "landing_page": "LOGIN",
+                        "shipping_preference": "SET_PROVIDED_ADDRESS",
+                        "user_action": "PAY_NOW",
+                        "return_url": self.settings.paypal_return_url,
+                        "cancel_url": self.settings.paypal_cancel_url
+                    }
+                }
+            }
+        }
+
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception("Failed to confirm order:", response.text)
+        
+        
+    def confirm_order_from_details(self, order_details, **kwargs):
+        """
+        Confirms the order using the details obtained from show_order_details.
+
+        Parameters:
+        - order_details: A dictionary containing the details of the order.
+
+        Returns:
+        - A dictionary containing the confirmation details if successful.
+        
+        Raises:
+        - Exception: If failed to confirm the order.
+        """
+        url = f"{self.settings.paypal_order_url}/{order_details['id']}/confirm-payment-source"
+        
+        
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+        
+        payload = {
+            "payment_source": {
+                "paypal": {
+                    "name": {
+                        "given_name": order_details['payer']['name']['given_name'],
+                        "surname": order_details['payer']['name']['surname']
+                    },
+                    "email_address": order_details['payer']['email_address'],
+                    "experience_context": {
+                        "payment_method_preference": kwargs.get('payment_method_preference', "IMMEDIATE_PAYMENT_REQUIRED"),
+                        "brand_name": kwargs.get('brand_name', self.settings.paypal_brand_name),
+                        "locale": kwargs.get('locale', self.settings.paypal_locale),
+                        "landing_page": kwargs.get('landing_page', "GUEST_CHECKOUT"),
+                        "shipping_preference": kwargs.get('shipping_preference', "NO_SHIPPING"),
+                        "user_action": kwargs.get('user_action', "PAY_NOW"),
+                        "return_url": kwargs.get('return_url', self.settings.paypal_return_url),
+                        "cancel_url": kwargs.get('cancel_url', self.settings.paypal_cancel_url)
+                    }
+                }
+            }
+        
+        }
+        
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            raise Exception("Failed to confirm order:", response.text)
