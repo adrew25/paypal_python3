@@ -1,5 +1,7 @@
 import requests
 from .config import Settings
+import random
+import time
 class PayPalAPI:
     """
     A class representing the PayPal API.
@@ -108,10 +110,27 @@ class PayPalAPI:
             }
         }
         response = requests.post(url, headers=headers, json=data)
+        
         if response.status_code == 200:
             return response.json()
         else:
             raise Exception("Failed to create order:", response.text)
+        
+        
+    def capture_order(self, order_id):
+        url = f"{self.settings.paypal_order_url}/{order_id}/capture"
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+        
+        response = requests.post(url, headers=headers)
+        
+        if response.status_code == 201:
+            return response.json()
+        else:
+            raise Exception("Failed to capture order:", response.text)
+        
 
 
     def show_order_details(self, order_id):
@@ -136,10 +155,9 @@ class PayPalAPI:
         if response.status_code == 200:
             return response.json()
         else:
-            raise Exception("Failed to retrieve order details:", response.text)
+            raise Exception("Failed to retrieve order Pinelodetails:", response.text)
+        
 
-        
-        
     def update_order(self, order_id, data):
         """
         Updates the details of the specified order.
@@ -185,7 +203,7 @@ class PayPalAPI:
             raise Exception("Failed to update order:", response.text)
         
 
-    def confirm_order(self, order_id, **kwargs):
+    def confirm_order(self, order_details, **kwargs):
         """
         Confirms the specified order.
 
@@ -210,7 +228,7 @@ class PayPalAPI:
         Raises:
         - Exception: If failed to confirm the order.
         """
-        url = f"{self.settings.paypal_order_url}/{order_id}/confirm-payment-source"
+        url = f"{self.settings.paypal_order_url}/{order_details['id']}/confirm-payment-source"
         headers = {
             'Content-Type': 'application/json',
             'Authorization': f'Bearer {self.get_access_token()}',
@@ -219,10 +237,10 @@ class PayPalAPI:
             "payment_source": {
                 "paypal": {
                     "name": {
-                        "given_name": kwargs.get('customer_given_name', "John"),
-                        "surname": kwargs.get('customer_surname', "Doe")
+                        "given_name": kwargs.get('customer_given_name', order_details['payer']['name']['given_name']),
+                        "surname": kwargs.get('customer_surname', order_details['payer']['name']['surname'])
                     },
-                    "email_address": kwargs.get('customer_email', ""),
+                    "email_address": kwargs.get('customer_email', order_details['payer']['email_address']),
                     "experience_context": {
                         "payment_method_preference": kwargs.get('payment_method_preference', "IMMEDIATE_PAYMENT_REQUIRED"),
                         "brand_name": kwargs.get('brand_name', self.settings.paypal_brand_name),
@@ -242,3 +260,62 @@ class PayPalAPI:
             return response.json()
         else:
             raise Exception("Failed to confirm order:", response.text)
+
+
+
+# ----------------- PAYPAL PAYMENT -----------------
+
+    def create_payment(self, payment_value, credits):
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+
+        invoice_id = int(time.time() * 1000) + random.randint(1, 1000)
+        
+        payload = {
+            "intent": "sale",
+            "payer": {
+                "payment_method": "paypal"
+            },
+            "transactions": [
+                {
+                    "amount": {
+                        "total": f"{payment_value}.00",
+                        "currency": "EUR"
+                    },
+                    "description": f"Purchase of {credits} credits in the app.",
+                    "invoice_number": invoice_id,
+                    "item_list": {
+                        "items": [
+                            {
+                                "name": "App Credits",
+                                "quantity": str(payment_value),
+                                "price": "1",
+                                "currency": "EUR"
+                            }
+                        ]
+                    }
+                }
+            ],
+            "note_to_payer": "Thank you for your purchase!",
+            "redirect_urls": {
+                "return_url": self.settings.paypal_return_url,
+                "cancel_url": self.settings.paypal_cancel_url
+            }
+        }
+
+        response = requests.post('https://api-m.sandbox.paypal.com/v1/payments/payment', headers=headers, json=payload)
+        return response.json()
+
+
+    def execute_payment_order(self, payment_id, payer_id):
+        headers = {
+            'Content-Type': 'application/json',
+            'Authorization': f'Bearer {self.get_access_token()}',
+        }
+        payload = {
+            "payer_id": payer_id
+        }
+        response = requests.post(f'https://api-m.sandbox.paypal.com/v1/payments/payment/{payment_id}/execute', headers=headers, json=payload)
+        return response.json()
